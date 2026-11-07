@@ -1,0 +1,11 @@
+.dart_tool/
+.packages
+build/
+.flutter-plugins*
+.idea/
+*.iml
+android/local.properties
+ios/Pods/
+ios/.symlinks/
+# Widget Preview related
+.widget_preview/

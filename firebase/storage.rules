@@ -1,0 +1,59 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(pathUserId) { return isSignedIn() && request.auth.uid == pathUserId; }
+    function isAdmin() {
+      return isSignedIn() &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ── Rider verification documents ──────────────────────────────────
+    // Stored at: riders/{riderId}/{documentType}/{fileName}
+    // Only the rider and admins can access these files.
+    // Customers NEVER have access to rider verification documents.
+    match /riders/{riderId}/{documentType}/{fileName} {
+      allow read: if isOwner(riderId) || isAdmin();
+      allow write: if isOwner(riderId) || isAdmin();
+
+      // File type validation
+      allow write: if isOwner(riderId) &&
+                       request.resource.contentType.matches('image/(jpeg|jpg|png)') ||
+                       request.resource.contentType.matches('application/pdf');
+
+      // File size limit: 10 MB
+      allow write: if isOwner(riderId) &&
+                       request.resource.size < 10 * 1024 * 1024;
+    }
+
+    // ── Restaurant images (public) ────────────────────────────────────
+    match /restaurants/{restaurantId}/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin() &&
+                       request.resource.contentType.matches('image/(jpeg|jpg|png|webp)') &&
+                       request.resource.size < 5 * 1024 * 1024;
+    }
+
+    // ── Food item images (public) ─────────────────────────────────────
+    match /foods/{foodId}/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin() &&
+                       request.resource.contentType.matches('image/(jpeg|jpg|png|webp)') &&
+                       request.resource.size < 5 * 1024 * 1024;
+    }
+
+    // ── User profile photos ───────────────────────────────────────────
+    match /profiles/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if isOwner(userId) &&
+                       request.resource.contentType.matches('image/(jpeg|jpg|png|webp)') &&
+                       request.resource.size < 2 * 1024 * 1024;
+    }
+
+    // ── Default deny ──────────────────────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
